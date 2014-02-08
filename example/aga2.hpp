@@ -12,7 +12,11 @@ const uint n = 2;
 template <class R>
 class Mv0 {
 public:
-    std::array<R,1> arr;
+    using Array = std::array<R,1>;
+
+    using Iter = typename Array::iterator;
+
+    Array arr;
 
     Mv0<R>(const R& a00) {
         arr[0] = a00;
@@ -28,8 +32,8 @@ public:
     }
 
     template<class F>
-    Mv0<F> cast<F>() {
-        return Mv0<F>(arr[0]);
+    Mv0<F> cast() {
+        return Mv0<F>(F(arr[0]));
     }
 
     const R& operator[](const uint d) const {
@@ -40,6 +44,14 @@ public:
     uint size() const {
         return 1;
     }
+
+    Iter begin() {
+        return arr.begin();
+    }
+
+    Iter end() {
+        return arr.end();
+    }
 };
 
 template<class R = float> class Mv0;
@@ -47,7 +59,11 @@ template<class R = float> class Mv0;
 template <class R>
 class Mv1 {
 public:
-    std::array<R,2> arr;
+    using Array = std::array<R,2>;
+
+    using Iter = typename Array::iterator;
+
+    Array arr;
 
     Mv1<R>(const R& a10, const R& a11) {
         arr[0] = a10;
@@ -60,8 +76,8 @@ public:
     }
 
     template<class F>
-    Mv1<F> cast<F>() {
-        return Mv1<F>(arr[0], arr[1]);
+    Mv1<F> cast() {
+        return Mv1<F>(F(arr[0]), F(arr[1]));
     }
 
     const R& operator[](const uint d) const {
@@ -72,6 +88,14 @@ public:
     uint size() const {
         return 2;
     }
+
+    Iter begin() {
+        return arr.begin();
+    }
+
+    Iter end() {
+        return arr.end();
+    }
 };
 
 template<class R = float> class Mv1;
@@ -79,7 +103,11 @@ template<class R = float> class Mv1;
 template <class R>
 class Mv2 {
 public:
-    std::array<R,1> arr;
+    using Array = std::array<R,1>;
+
+    using Iter = typename Array::iterator;
+
+    Array arr;
 
     explicit Mv2<R>(const R& a20) {
         arr[0] = a20;
@@ -95,8 +123,8 @@ public:
     }
 
     template<class F>
-    Mv2<F> cast<F>() {
-        return Mv2<F>(arr[0]);
+    Mv2<F> cast() {
+        return Mv2<F>(F(arr[0]));
     }
 
     const R& operator[](const uint d) const {
@@ -107,6 +135,14 @@ public:
     uint size() const {
         return 1;
     }
+
+    Iter begin() {
+        return arr.begin();
+    }
+
+    Iter end() {
+        return arr.end();
+    }
 };
 
 template<class R = float> class Mv2;
@@ -114,7 +150,11 @@ template<class R = float> class Mv2;
 template <class R>
 class Mv02 {
 public:
-    std::array<R,2> arr;
+    using Array = std::array<R,2>;
+
+    using Iter = typename Array::iterator;
+
+    Array arr;
 
     Mv02<R>(const R& a00, const R& a20) {
         arr[0] = a00;
@@ -127,8 +167,8 @@ public:
     }
 
     template<class F>
-    Mv02<F> cast<F>() {
-        return Mv02<F>(arr[0], arr[1]);
+    Mv02<F> cast() {
+        return Mv02<F>(F(arr[0]), F(arr[1]));
     }
 
     const R& operator[](const uint d) const {
@@ -138,6 +178,14 @@ public:
 
     uint size() const {
         return 2;
+    }
+
+    Iter begin() {
+        return arr.begin();
+    }
+
+    Iter end() {
+        return arr.end();
     }
 };
 
@@ -152,25 +200,21 @@ Mv0<R> operator*(const Mv0<R> &x, const Mv0<R> &y) {
 
 template <class R>
 Mv1<R> operator*(const Mv0<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[0]), (x[0] * y[1]));
 }
 
 template <class R>
 Mv2<R> operator*(const Mv0<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv2<R>((x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator*(const Mv0<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] * y[0]), (x[0] * y[1]));
 }
 
 template <class R>
 Mv1<R> operator*(const Mv1<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[0]), (x[1] * y[0]));
 }
 
@@ -182,25 +226,21 @@ Mv02<R> operator*(const Mv1<R> &x, const Mv1<R> &y) {
 
 template <class R>
 Mv1<R> operator*(const Mv1<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((-x[1]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator*(const Mv1<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv1<R>(((-x[1]) + (x[0] * y[0])), ((x[0] * y[1]) + (x[1] * y[0])));
 }
 
 template <class R>
 Mv2<R> operator*(const Mv2<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv2<R>((x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator*(const Mv2<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[1]), (-x[0]));
 }
 
@@ -212,25 +252,21 @@ Mv0<R> operator*(const Mv2<R> &x, const Mv2<R> &y) {
 
 template <class R>
 Mv02<R> operator*(const Mv2<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-x[0]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator*(const Mv02<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] * y[0]), (x[1] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator*(const Mv02<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>(((x[1] * y[1]) + (x[0] * y[0])), ((-x[1]) + (x[0] * y[1])));
 }
 
 template <class R>
 Mv02<R> operator*(const Mv02<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-x[1]), (x[0] * y[0]));
 }
 
@@ -249,25 +285,21 @@ Mv0<R> operator|(const Mv0<R> &x, const Mv0<R> &y) {
 
 template <class R>
 Mv1<R> operator|(const Mv0<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[0]), (x[0] * y[1]));
 }
 
 template <class R>
 Mv2<R> operator|(const Mv0<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv2<R>((x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator|(const Mv0<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] * y[0]), (x[0] * y[1]));
 }
 
 template <class R>
 Mv1<R> operator|(const Mv1<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[0]), (x[1] * y[0]));
 }
 
@@ -279,25 +311,21 @@ Mv0<R> operator|(const Mv1<R> &x, const Mv1<R> &y) {
 
 template <class R>
 Mv1<R> operator|(const Mv1<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((-x[1]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator|(const Mv1<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv1<R>(((-x[1]) + (x[0] * y[0])), ((x[0] * y[1]) + (x[1] * y[0])));
 }
 
 template <class R>
 Mv2<R> operator|(const Mv2<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv2<R>((x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator|(const Mv2<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>((x[0] * y[1]), (-x[0]));
 }
 
@@ -309,25 +337,21 @@ Mv0<R> operator|(const Mv2<R> &x, const Mv2<R> &y) {
 
 template <class R>
 Mv02<R> operator|(const Mv2<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-x[0]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator|(const Mv02<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] * y[0]), (x[1] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator|(const Mv02<R> &x, const Mv1<R> &y) {
-    assert(&x != &y);
     return Mv1<R>(((x[1] * y[1]) + (x[0] * y[0])), ((-x[1]) + (x[0] * y[1])));
 }
 
 template <class R>
 Mv02<R> operator|(const Mv02<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-x[1]), (x[0] * y[0]));
 }
 
@@ -367,13 +391,11 @@ Mv0<R> operator+(const Mv0<R> &x, const Mv0<R> &y) {
 
 template <class R>
 Mv02<R> operator+(const Mv0<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(x[0], y[0]);
 }
 
 template <class R>
 Mv02<R> operator+(const Mv0<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] + y[0]), y[1]);
 }
 
@@ -385,7 +407,6 @@ Mv1<R> operator+(const Mv1<R> &x, const Mv1<R> &y) {
 
 template <class R>
 Mv02<R> operator+(const Mv2<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(y[0], x[0]);
 }
 
@@ -397,19 +418,16 @@ Mv2<R> operator+(const Mv2<R> &x, const Mv2<R> &y) {
 
 template <class R>
 Mv02<R> operator+(const Mv2<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(y[0], (x[0] + y[1]));
 }
 
 template <class R>
 Mv02<R> operator+(const Mv02<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((x[0] + y[0]), x[1]);
 }
 
 template <class R>
 Mv02<R> operator+(const Mv02<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(x[0], (x[1] + y[0]));
 }
 
@@ -428,13 +446,11 @@ Mv0<R> operator-(const Mv0<R> &x, const Mv0<R> &y) {
 
 template <class R>
 Mv02<R> operator-(const Mv0<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(x[0], (-y[0]));
 }
 
 template <class R>
 Mv02<R> operator-(const Mv0<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(((-y[0]) + x[0]), (-y[1]));
 }
 
@@ -446,7 +462,6 @@ Mv1<R> operator-(const Mv1<R> &x, const Mv1<R> &y) {
 
 template <class R>
 Mv02<R> operator-(const Mv2<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-y[0]), x[0]);
 }
 
@@ -458,19 +473,16 @@ Mv2<R> operator-(const Mv2<R> &x, const Mv2<R> &y) {
 
 template <class R>
 Mv02<R> operator-(const Mv2<R> &x, const Mv02<R> &y) {
-    assert(&x != &y);
     return Mv02<R>((-y[0]), ((-y[1]) + x[0]));
 }
 
 template <class R>
 Mv02<R> operator-(const Mv02<R> &x, const Mv0<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(((-y[0]) + x[0]), x[1]);
 }
 
 template <class R>
 Mv02<R> operator-(const Mv02<R> &x, const Mv2<R> &y) {
-    assert(&x != &y);
     return Mv02<R>(x[0], ((-y[0]) + x[1]));
 }
 

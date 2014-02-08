@@ -92,6 +92,9 @@ def name_cls(gs, *ts):
 	else:
 		targs = ''
 
+	#if gs == [0]:
+	#	return 'R'
+	#else:
 	return 'Mv'+''.join(map(str,gs)) + targs
 
 
@@ -178,7 +181,11 @@ def p_cls(gs):
 		'class {} '.format(name_cls(gs)) + '{',
 		'public:',
 		[
-			'std::array<R,{}> arr;'.format(csize(gs)),
+			'using Array = std::array<R,{}>;'.format(csize(gs)),
+			'',			
+			'using Iter = typename Array::iterator;'.format(csize(gs)),
+			'',			
+			'Array arr;'.format(csize(gs)),
 			'',
 			mod+'{}({}) '.format(name_cls(gs, 'R'), ', '.join(cargs)) + '{',
 			cbody,
@@ -193,11 +200,11 @@ def p_cls(gs):
 			'}',
 			'',
 			'template<class F>',
-			'{} cast<F>() {{'.format(name_cls(gs, 'F')),
+			'{} cast() {{'.format(name_cls(gs, 'F')),
 			[
 				'return {}({});'.format(
 					name_cls(gs, 'F'),
-					join(['arr[{}]'.format(i) for i in range(csize(gs))], ', '),
+					join(['F(arr[{}])'.format(i) for i in range(csize(gs))], ', '),
 				),
 			],
 			'}',
@@ -212,6 +219,14 @@ def p_cls(gs):
 			'uint size() const {',
 				['return {};'.format(csize(gs))],
 			'}',			
+			'',
+			'Iter begin() {',
+				['return arr.begin();'],
+			'}',			
+			'',
+			'Iter end() {',
+				['return arr.end();'],
+			'}',
 		],
 		'};',
 		'',
@@ -277,7 +292,7 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 		for i,expr in enumerate(r.mv[k]):
 			coeffs.append(conv_expr(expr))    #//'+fname(zgs, 'z', k, i))
 	
-	if len(kss) == 2:
+	if len(kss) == 2 and kss[0] == kss[1]:
 		assert_ = 'assert(&{} != &{});\n'.format(nargs[0], nargs[1])
 	else:
 		assert_ = ''
@@ -317,8 +332,10 @@ def p_print(ks):
 	
 
 def main():
-	#cs = [[0], [1], [2], [0,2], [1,3], [3]]
-	cs = [[0], [1], [2], [0,2]]
+	if n == 3:
+		cs = [[0], [1], [2], [0,2], [1,3], [3]]
+	else:
+		cs = [[0], [1], [2], [0,2]]
 
 	xs = []
 	xs.extend(prelude())
