@@ -191,6 +191,10 @@ def p_cls(gs):
 			cbody,
 			'}',
 			'',
+			# null constructor
+			'{}() '.format(name_cls(gs, 'R')) + '{',
+			'}',
+			'',
 		] +	cast + [
 			'R& operator[](const uint d) {',
 			[
@@ -271,6 +275,23 @@ def conv_expr(root):
 
 
 
+def p_func_wrap(name, ret_type, arg_types, arg_names, body):
+	decl_args = []	
+	for arg_type, arg_name in zip(arg_types, arg_names):
+		decl_args.append(format('{} const& {}', arg_type, arg_name))
+		
+	return [(
+		'template <class R>\n'
+		'{ret_type} {func_name}({arg_lst}) {{\n'
+		'{body}\n'
+		'}}\n'
+	).format(
+		#assert_ = assert_,
+		ret_type = ret_type, 		
+		func_name = name, 
+		arg_lst = join(decl_args, ', '),
+		body = body,
+	)]
 
 
 def p_op(opname, opfunc, kss, nargs = 'xyz'):
@@ -279,7 +300,7 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 	decl_args = []
 	for ks, narg in zip(kss, nargs):
 		args.append(produce_obj(narg, n, ks))
-		decl_args.append('const {} &{}'.format(name_cls(ks,'R'), narg))
+		decl_args.append('{} const& {}'.format(name_cls(ks,'R'), narg))
 			
 	r = opfunc(*args)
 	
@@ -311,6 +332,7 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 		coe_lst = join(coeffs, ', '),
 	)]
 	
+
 	
 
 def nz_grades(x):
@@ -319,6 +341,7 @@ def nz_grades(x):
 			yield k
 
 
+	
 	
 def p_print(ks):		
 	return [(
@@ -330,7 +353,37 @@ def p_print(ks):
 			out_args = join(['x[{}]'.format(i) for i in range(csize(ks))], ' << "," << '),
 	)]
 	
+def format(x, *args, **kwargs):
+	return x.format(*args, **kwargs)
+	
+def par(x):
+	return format('({})', x)
 
+def oper_join(xs, o1, o2):
+	ys = [par(o1.join(x)) for x in xs]
+	return o2.join(ys)
+
+	
+
+def p_xeq_func(c, name, opers):
+
+	# body
+	pairs = []
+	for i in range(len(c)):
+		pairs.append((
+			format('x[{}]', i), 
+			format('y[{}]', i),
+		))
+		
+	return p_func_wrap(
+		name = name,
+		ret_type = 'bool',
+		arg_types = [name_cls(c,'R'), name_cls(c,'R')],
+		arg_names = ['x', 'y'],
+		body = format('return {};', oper_join(pairs, *opers))
+	)
+	
+			
 def main():
 	if n == 3:
 		cs = [[0], [1], [2], [0,2], [1,3], [3]]
@@ -344,6 +397,24 @@ def main():
 	for c in cs:
 		xs.extend(p_cls(c)); xs.append('')
 		
+	
+	xs.append('// eq')
+	for c in cs:
+		x =  p_xeq_func(c, 
+			name = 'operator==',
+			opers = (' == ', ' && '),
+		)
+		xs.extend(x)
+			
+
+	xs.append('// neq')
+	for c in cs:
+		x =  p_xeq_func(c,
+			name = 'operator!=',
+			opers = (' != ', ' || '),
+		)
+		xs.extend(x)
+				
 	xs.append('// mul')
 	for c1 in cs:
 		for c2 in cs:
