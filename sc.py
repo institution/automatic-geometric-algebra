@@ -275,38 +275,43 @@ def conv_expr(root):
 
 
 
-def p_func_wrap(name, ret_type, arg_types, arg_names, body):
+def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
 	decl_args = []	
-	for arg_type, arg_name in zip(arg_types, arg_names):
-		decl_args.append(format('{} const& {}', arg_type, arg_name))
+	for arg_type, arg_mod, arg_name in zip(arg_types, arg_mods, arg_names):
+		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
 		
 	return [(
 		'template <class R>\n'
 		'{ret_type} {func_name}({arg_lst}) {{\n'
+		'{assert_}\n'	
 		'{body}\n'
 		'}}\n'
 	).format(
-		#assert_ = assert_,
+		assert_ = assert_,
 		ret_type = ret_type, 		
 		func_name = name, 
 		arg_lst = join(decl_args, ', '),
-		body = body,
+		body = body,		
 	)]
+
 
 
 def p_op(opname, opfunc, kss, nargs = 'xyz'):
 	
 	args = []
-	decl_args = []
+	arg_types = []
 	for ks, narg in zip(kss, nargs):
 		args.append(produce_obj(narg, n, ks))
-		decl_args.append('{} const& {}'.format(name_cls(ks,'R'), narg))
+		arg_types.append(name_cls(ks,'R'))
+		
+	arg_names = nargs[:len(kss)]
 			
 	r = opfunc(*args)
 	
 	# import ipdb; ipdb.set_trace()
 	nzr = list(nz_grades(r))
 	tr = name_cls(nzr,'R')
+	ret_type = tr
 	
 	coeffs = []				
 	for k in nzr:
@@ -318,21 +323,19 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 	else:
 		assert_ = ''
 		
-	return nzr, [(
-		'template <class R>\n'
-		'{ret_type} {op_name}({arg_lst}) {{\n'
-		'    {assert_}'	
-		'    return {ret_type}({coe_lst});\n'
-		'}}\n'
-	).format(
-		assert_ = assert_,
-		ret_type = tr, 
-		op_name = opname, 
-		arg_lst = join(decl_args, ', '),
-		coe_lst = join(coeffs, ', '),
-	)]
 	
-
+	coe = ', '.join(coeffs)
+				
+	return nzr, p_func_wrap(
+		name = opname, 
+		ret_type = ret_type, 
+		arg_types = arg_types, 
+		arg_mods = ['const&'] * len(arg_types),
+		arg_names = arg_names, 
+		body = format('return {}({});', ret_type, coe), 
+		assert_=assert_
+	)
+	
 	
 
 def nz_grades(x):
@@ -370,15 +373,15 @@ def p_xeq_func(c, name, opers):
 	# body
 	pairs = []
 	for i in range(len(c)):
-		pairs.append((
-			format('x[{}]', i), 
-			format('y[{}]', i),
-		))
+		pairs.append([
+			format('x[{}]', i), format('y[{}]', i)
+		])
 		
 	return p_func_wrap(
 		name = name,
 		ret_type = 'bool',
 		arg_types = [name_cls(c,'R'), name_cls(c,'R')],
+		arg_mods = ['const&'] * 2,
 		arg_names = ['x', 'y'],
 		body = format('return {};', oper_join(pairs, *opers))
 	)
@@ -444,6 +447,17 @@ def main():
 			rk, func = p_op('operator+', operator.add, [c1, c2])
 			if rk in cs:
 				xs.extend(func)
+
+				if rk == c1:				
+					xs.extend(p_func_wrap(
+						name = 'operator+=', 
+						ret_type = 'void', 
+						arg_types = [name_cls(c1,'R'), name_cls(c2,'R')],
+						arg_mods = ['&', 'const&'],
+						arg_names = ['x', 'y'],
+						body = 'x = x + y;', 
+					))
+
 	
 	xs.append('// sub')
 	for c1 in cs:
