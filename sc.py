@@ -1,34 +1,132 @@
-from sympy.galgebra.GA import *
-from sympy.galgebra.latex_ex import *
+from sympy.galgebra.ga import *
 from sympy import *
 import operator as op
 import sympy, numpy, sys
 from math import factorial as _factorial
 import operator 
 from string import join
-
-set_main(sys.modules[__name__])
-
 import sys
 
+if len(sys.argv) != 2:
+	print "Usage: python sc.py 2 > aga2.hpp && astyle aga2.hpp"
+	sys.exit(0)
+
+prec = 'float'
 
 n = int(sys.argv[1])
+N = 2**n
 
-metric = (
-	'1 0 0,'
-	'0 1 0,'
-	'0 0 1')
+def get_metric(n):
+	""" Return metric passable to setup proc	
+	ex.
+	n=2 -> "[1,1]"
+	n=3 -> "[1,1,1]"
+	"""
+	return '['+','.join(['1']*n)+']'
 
-base = MV.setup(' '.join('e{}'.format(i) for i in range(n)), metric)
-_1 = base[0] * base[0]
-basis = base[0].basis
-prec = 'float'
+
+def get_basis(n):
+	""" Return basis passable to setup proc
+	ex.
+	n=2 -> "e0 e1"
+	n=3 -> "e0 e1 e2"
+	"""
+	return ' '.join('e{}'.format(i) for i in range(n))
+
+
+def get_bases():
+	""" Return mv base grouped by grades
+	ex.
+	n = 2 -> ((ONE,), (e0, e1), (e0*e1,))
+	"""
+	return ((MV.ONE,),) + MV.blades[1:]
+	# return ((MV.ONE,),) + MV.bases[1:]
+
+def get_flat_bases():
+	""" Return mv base grouped by grades
+	ex.
+	n = 2 -> ((ONE,), (e0, e1), (e0*e1,))
+	"""
+	rs = []
+	for bs in get_bases():
+		for b in bs:
+			rs.append(b)
+	return rs
+
+
+
+# get basis multivectors
+e = MV.setup(get_basis(n), get_metric(n))
+
+
+def get_bases():
+	""" Return mv base grouped by grades
+	ex.
+	n = 2 -> ((ONE,), (e0, e1), (e0*e1,))
+	"""
+	bss = []
+	for es in MV.index:
+		bs = []
+		if es == ():
+			bs.append(_1)
+		else:
+			for js in es:
+				bmv = reduce(operator.mul, map(lambda j: e[j], js))
+				bs.append(bmv)
+				
+		bss.append(bs)
+	
+	return bss
+
+
+
+
+
+
+_1 = e[0]*e[0]
+_I = _1.dual()
+
+
+ZERO = MV.ONE - MV.ONE
+
+bases = get_bases()
+flat_bases = get_flat_bases()
+
+def get_base_coefs(mv):
+	"""
+	ex.
+	1 + 2*e0 + 4*e0*e1 (with n=2) -> [[1],[1,0],[4]]
+	"""
+	rs = []
+	for bs in bases:
+		t = []
+		for b in bs:
+			t.append(mv.coef(b))
+					
+		rs.append(t)		
+	return rs
+	
+	
+
+# MV.index = ((),((0,),(1,),(2,)),((0,1),(0,2),(1,2)),((0,1,2)))
+
+
+
+# A = A_0*MV.bases[0][0]+A__1*MV.bases[1][0]+A__2*MV.bases[1][1]+A__12*MV.bases[2][0]
+
+
+
+def get_base_elems():
+	MV.bases
+
+
 
 
 
 def prelude():
-	bs = map(len,basis)
-	bs[0] = 1
+	""" Return c++ prelude """
+	bs = map(len, MV.index)
+
 	return [
 		'#ifndef AGA{n}_HPP'.format(n = n),
 		'#define AGA{n}_HPP'.format(n = n),
@@ -39,16 +137,23 @@ def prelude():
 		'',
 		'namespace aga{n} {{'.format(n = n),
 		'',
-		'const uint n = {n};'.format(n = n),
+		'using uint = unsigned int;',
+		'',
+		'uint const n = {n};'.format(n = n),
 	]
 	
 
 def ending():
+	""" Return c++ ending """
 	return [
 		'}} // aga{n}'.format(n = n),
 		'',
 		'#endif // AGA{}_HPP'.format(n),
 	]
+
+
+
+
 
 
 def lacomb(cs, bs):
@@ -58,44 +163,65 @@ def fname(gs, key, k, i):
 	#return '{}[{}{}]'.format(key, k, i)
 	return '{}[{}]'.format(key, d_ki(gs, k, i))
 
-def produce_obj(key, n, ks):
-	if ks == [0]:
-		return MV(symbols(key+'[0]'), 'scalar')
 
-	cs,bs = [],[]
-	if 0 in ks:
-		bs.append(1)
-		
-	for k in ks:
-		l = _comb(n, k)
-		symbs = []
-		for i in range(l):
-			symbs.append(fname(ks, key, k, i))
-			
-		for ds in basis[k]:
-			bs.append(reduce(lambda a,b: a^b, map(lambda j: base[j], ds)))
-		
-		cs.extend(map(symbols, symbs))
+def csize(grades):
+	""" Return size of c++ Mv(grades) object
+	ex.
+	n = 3
+	(0,3) -> 2
+	(1) -> 3
+	(1,3) -> 4
+	"""
+	p = 0
+	for k in grades:
+		l = _comb(n,k)
+		p += l
+	return p
 
-	return lacomb(cs, bs)
+
+
+def produce_obj(name, grades):
+	""" Return sympy mv object with symbolic coeffs
+	name
+	grades
+
+	name[0]*e1 + name[1]*e2
+
 	
+	"""
+	mv = ZERO
 	
+	i = 0
+	for g in grades:
+		for base_mv in bases[g]:			
+			coef = symbols('{}[{}]'.format(name, i))  # name[i]
+			mv += coef * base_mv			
+			i += 1	
+	
+	return mv
+		
+
 
 def _comb(n,k):
 	return _factorial(n) / (_factorial(n-k) * _factorial(k))
 	
 
 
-def name_cls(gs, *ts):
-	if ts:
-		targs = '<{}>'.format(join(ts, ', '))
+def name_cls(grades, *template_args):
+	""" Return c++ multivector template class name 
+	
+	ex rotor inst.
+		grades = (0,2), template_args = 'float' -> "Mv02<float>"
+	
+	ex vector decl.
+		grades = (1,) -> "Mv1"
+	"""
+	if template_args:
+		targs = '<{}>'.format(join(template_args, ', '))
 	else:
 		targs = ''
 
-	#if gs == [0]:
-	#	return 'R'
-	#else:
-	return 'Mv'+''.join(map(str,gs)) + targs
+	return 'Mv'+''.join(map(str,grades)) + targs
 
 
 
@@ -108,12 +234,24 @@ def build(xs, j = 0):
 			yield '\t'*j + x
 			
 
-def csize(gs):
+
+
+def csize(grades):
+	""" Return size of c++ Mv(grades) object
+	ex.
+	n = 3
+	(0,3) -> 2
+	(1) -> 3
+	(1,3) -> 4
+	"""
 	p = 0
-	for k in gs:
+	for k in grades:
 		l = _comb(n,k)
 		p += l
 	return p
+	
+	
+	
 
 def d_ki(gs, k, i):
 	""" d -> k,i """
@@ -146,7 +284,10 @@ def p_alias_func(fname, aname):
 		'}'
 	]
 
-def p_cls(gs):
+def p_cls(grades):
+	""" Return c++ code for Mv class """
+	
+	gs = grades
 	
 	cargs = []
 	cbody = []
@@ -154,7 +295,7 @@ def p_cls(gs):
 		l = _comb(n,k)
 		for i in range(l):
 			k,i	
-			cargs.append('const R& a{}{}'.format(k,i))
+			cargs.append('R const& a{}{}'.format(k,i))
 			cbody.append('arr[{}] = a{}{};'.format(d_ki(gs, k,i), k, i))
 
 	if gs == [0]:
@@ -196,7 +337,7 @@ def p_cls(gs):
 			'}',
 			'',
 		] +	cast + [
-			'R& operator[](const uint d) {',
+			'R& operator[](uint const& d) {',
 			[
 				'assert(d < size());',
 				'return arr[d];',
@@ -213,7 +354,7 @@ def p_cls(gs):
 			],
 			'}',
 			'',
-			'const R& operator[](const uint d) const {',
+			'const R& operator[](uint const& d) const {',
 			[
 				'assert(d < size());',
 				'return arr[d];',
@@ -296,37 +437,53 @@ def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 
 
 
+
+
 def p_op(opname, opfunc, kss, nargs = 'xyz'):
+	"""
 	
+	template <class R>
+	Mv02<R> operator*(Mv0<R> const& x, Mv02<R> const& y) {
+		return Mv02<R>((x[0] * y[0]), (x[0] * y[1]));
+	}
+	
+	"""
 	args = []
 	arg_types = []
 	for ks, narg in zip(kss, nargs):
-		args.append(produce_obj(narg, n, ks))
+		args.append(produce_obj(narg, ks))
 		arg_types.append(name_cls(ks,'R'))
 		
 	arg_names = nargs[:len(kss)]
 			
 	r = opfunc(*args)
 	
-	# import ipdb; ipdb.set_trace()
-	nzr = list(nz_grades(r))
-	tr = name_cls(nzr,'R')
-	ret_type = tr
+	bss = get_base_coefs(r)
 	
-	coeffs = []				
-	for k in nzr:
-		for i,expr in enumerate(r.mv[k]):
-			coeffs.append(conv_expr(expr))    #//'+fname(zgs, 'z', k, i))
+	# non zero result grades	
+	nz_grades = []
+	
+	
+	for g,bs in enumerate(bss):
+		if any([b != ZERO for b in bs]):		
+			nz_grades.append(g)
+			
+	ret_type = name_cls(nz_grades,'R')
+		
+	
+	ces = []
+	for g in nz_grades:
+		for coef in bss[g]:
+			ces.append(conv_expr(coef))
 	
 	if len(kss) == 2 and kss[0] == kss[1]:
 		assert_ = 'assert(&{} != &{});\n'.format(nargs[0], nargs[1])
 	else:
 		assert_ = ''
-		
 	
-	coe = ', '.join(coeffs)
+	coe = ', '.join(ces)
 				
-	return nzr, p_func_wrap(
+	return nz_grades, p_func_wrap(
 		name = opname, 
 		ret_type = ret_type, 
 		arg_types = arg_types, 
@@ -339,9 +496,12 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 	
 
 def nz_grades(x):
-	for k,exprs in enumerate(x.mv):
-		if exprs is not 0 and any(e != 0 for e in exprs):
-			yield k
+	# non zero grades - list of int
+	return x.get_grades().keys()
+
+	#for k,exprs in enumerate(x.mv):
+	#	if exprs is not 0 and any(e != 0 for e in exprs):
+	#		yield k
 
 
 	
@@ -368,11 +528,18 @@ def oper_join(xs, o1, o2):
 
 	
 
-def p_xeq_func(c, name, opers):
+def p_xeq_func(grades, name, opers):
+	""" Return c++ same-obj comparsion function in the form of:
+	
+	bool eq(Mv1<R> const& x, Mv1<R> const& y) {
+		return x[0] == y[0] and x[1] == y[1];
+	}
+	
+	"""
 
 	# body
 	pairs = []
-	for i in range(len(c)):
+	for i in range(csize(grades)):
 		pairs.append([
 			format('x[{}]', i), format('y[{}]', i)
 		])
@@ -380,7 +547,7 @@ def p_xeq_func(c, name, opers):
 	return p_func_wrap(
 		name = name,
 		ret_type = 'bool',
-		arg_types = [name_cls(c,'R'), name_cls(c,'R')],
+		arg_types = [name_cls(grades,'R'), name_cls(grades,'R')],
 		arg_mods = ['const&'] * 2,
 		arg_names = ['x', 'y'],
 		body = format('return {};', oper_join(pairs, *opers))
@@ -474,13 +641,13 @@ def main():
 	for i in range(n):
 		args = [0]*n
 		args[i] = 1
-		xs.append('const {} e{}({});'.format(
+		xs.append('{} const e{}({});'.format(
 			name_cls([1], prec), 
 			str(i), 
 			join(map(str,args), ',')
 		))
 		
-	xs.append('const {} I(1);'.format(
+	xs.append('{} const I(1);'.format(
 		name_cls([n], prec)
 	))
 	xs.append('')
