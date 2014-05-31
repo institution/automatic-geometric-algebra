@@ -35,7 +35,7 @@ public:
     Mv0<R>() {
     }
 
-    operator R() {
+    operator R() const {
         return arr[0];
     }
 
@@ -56,6 +56,10 @@ public:
 
     uint size() const {
         return 1;
+    }
+
+    R const* data() const {
+        return arr.data();
     }
 
     bool empty() const {
@@ -136,6 +140,10 @@ public:
         return 2;
     }
 
+    R const* data() const {
+        return arr.data();
+    }
+
     bool empty() const {
         return false;
     }
@@ -194,7 +202,7 @@ public:
     Mv2<R>() {
     }
 
-    explicit operator R() {
+    explicit operator R() const {
         return arr[0];
     }
 
@@ -215,6 +223,10 @@ public:
 
     uint size() const {
         return 1;
+    }
+
+    R const* data() const {
+        return arr.data();
     }
 
     bool empty() const {
@@ -293,6 +305,10 @@ public:
 
     uint size() const {
         return 2;
+    }
+
+    R const* data() const {
+        return arr.data();
     }
 
     bool empty() const {
@@ -415,19 +431,19 @@ template <class R>
 Mv02<R> operator*(Mv1<R> const& x, Mv1<R> const& y) {
     assert(&x != &y);
 
-    return Mv02<R>(((x[0] * y[0]) + (x[1] * y[1])), ((-x[1]) + (x[0] * y[1])));
+    return Mv02<R>(((x[0] * y[0]) + (x[1] * y[1])), ((-1 * x[1] * y[0]) + (x[0] * y[1])));
 }
 
 template <class R>
 Mv1<R> operator*(Mv1<R> const& x, Mv2<R> const& y) {
 
-    return Mv1<R>((-x[1]), (x[0] * y[0]));
+    return Mv1<R>((-1 * x[1] * y[0]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator*(Mv1<R> const& x, Mv02<R> const& y) {
 
-    return Mv1<R>(((x[0] * y[0]) + (-x[1])), ((x[0] * y[1]) + (x[1] * y[0])));
+    return Mv1<R>(((x[0] * y[0]) + (-1 * x[1] * y[1])), ((x[0] * y[1]) + (x[1] * y[0])));
 }
 
 template <class R>
@@ -439,20 +455,20 @@ Mv2<R> operator*(Mv2<R> const& x, Mv0<R> const& y) {
 template <class R>
 Mv1<R> operator*(Mv2<R> const& x, Mv1<R> const& y) {
 
-    return Mv1<R>((x[0] * y[1]), (-x[0]));
+    return Mv1<R>((x[0] * y[1]), (-1 * x[0] * y[0]));
 }
 
 template <class R>
 Mv0<R> operator*(Mv2<R> const& x, Mv2<R> const& y) {
     assert(&x != &y);
 
-    return Mv0<R>((-x[0]));
+    return Mv0<R>((-1 * x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator*(Mv2<R> const& x, Mv02<R> const& y) {
 
-    return Mv02<R>((-x[0]), (x[0] * y[0]));
+    return Mv02<R>((-1 * x[0] * y[1]), (x[0] * y[0]));
 }
 
 template <class R>
@@ -464,23 +480,23 @@ Mv02<R> operator*(Mv02<R> const& x, Mv0<R> const& y) {
 template <class R>
 Mv1<R> operator*(Mv02<R> const& x, Mv1<R> const& y) {
 
-    return Mv1<R>(((x[0] * y[0]) + (x[1] * y[1])), ((-x[1]) + (x[0] * y[1])));
+    return Mv1<R>(((x[0] * y[0]) + (x[1] * y[1])), ((-1 * x[1] * y[0]) + (x[0] * y[1])));
 }
 
 template <class R>
 Mv02<R> operator*(Mv02<R> const& x, Mv2<R> const& y) {
 
-    return Mv02<R>((-x[1]), (x[0] * y[0]));
+    return Mv02<R>((-1 * x[1] * y[0]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv02<R> operator*(Mv02<R> const& x, Mv02<R> const& y) {
     assert(&x != &y);
 
-    return Mv02<R>(((x[0] * y[0]) + (-x[1])), ((x[0] * y[1]) + (x[1] * y[0])));
+    return Mv02<R>(((x[0] * y[0]) + (-1 * x[1] * y[1])), ((x[0] * y[1]) + (x[1] * y[0])));
 }
 
-// inn
+// inner product
 template <class R>
 Mv0<R> operator|(Mv1<R> const& x, Mv1<R> const& y) {
     assert(&x != &y);
@@ -491,51 +507,133 @@ Mv0<R> operator|(Mv1<R> const& x, Mv1<R> const& y) {
 template <class R>
 Mv1<R> operator|(Mv1<R> const& x, Mv2<R> const& y) {
 
-    return Mv1<R>((-x[1]), (x[0] * y[0]));
+    return Mv1<R>((-1 * x[1] * y[0]), (x[0] * y[0]));
 }
 
 template <class R>
 Mv1<R> operator|(Mv1<R> const& x, Mv02<R> const& y) {
 
-    return Mv1<R>((-x[1]), (x[0] * y[1]));
+    return Mv1<R>((-1 * x[1] * y[1]), (x[0] * y[1]));
 }
 
 template <class R>
 Mv1<R> operator|(Mv2<R> const& x, Mv1<R> const& y) {
 
-    return Mv1<R>((x[0] * y[1]), (-x[0]));
+    return Mv1<R>((x[0] * y[1]), (-1 * x[0] * y[0]));
 }
 
 template <class R>
 Mv0<R> operator|(Mv2<R> const& x, Mv2<R> const& y) {
     assert(&x != &y);
 
-    return Mv0<R>((-x[0]));
+    return Mv0<R>((-1 * x[0] * y[0]));
 }
 
 template <class R>
 Mv0<R> operator|(Mv2<R> const& x, Mv02<R> const& y) {
 
-    return Mv0<R>((-x[0]));
+    return Mv0<R>((-1 * x[0] * y[1]));
 }
 
 template <class R>
 Mv1<R> operator|(Mv02<R> const& x, Mv1<R> const& y) {
 
-    return Mv1<R>((x[1] * y[1]), (-x[1]));
+    return Mv1<R>((x[1] * y[1]), (-1 * x[1] * y[0]));
 }
 
 template <class R>
 Mv0<R> operator|(Mv02<R> const& x, Mv2<R> const& y) {
 
-    return Mv0<R>((-x[1]));
+    return Mv0<R>((-1 * x[1] * y[0]));
 }
 
 template <class R>
 Mv0<R> operator|(Mv02<R> const& x, Mv02<R> const& y) {
     assert(&x != &y);
 
-    return Mv0<R>((-x[1]));
+    return Mv0<R>((-1 * x[1] * y[1]));
+}
+
+// outer product
+template <class R>
+Mv0<R> operator^(Mv0<R> const& x, Mv0<R> const& y) {
+    assert(&x != &y);
+
+    return Mv0<R>((x[0] * y[0]));
+}
+
+template <class R>
+Mv1<R> operator^(Mv0<R> const& x, Mv1<R> const& y) {
+
+    return Mv1<R>((x[0] * y[0]), (x[0] * y[1]));
+}
+
+template <class R>
+Mv2<R> operator^(Mv0<R> const& x, Mv2<R> const& y) {
+
+    return Mv2<R>((x[0] * y[0]));
+}
+
+template <class R>
+Mv02<R> operator^(Mv0<R> const& x, Mv02<R> const& y) {
+
+    return Mv02<R>((x[0] * y[0]), (x[0] * y[1]));
+}
+
+template <class R>
+Mv1<R> operator^(Mv1<R> const& x, Mv0<R> const& y) {
+
+    return Mv1<R>((x[0] * y[0]), (x[1] * y[0]));
+}
+
+template <class R>
+Mv2<R> operator^(Mv1<R> const& x, Mv1<R> const& y) {
+    assert(&x != &y);
+
+    return Mv2<R>(((-1 * x[1] * y[0]) + (x[0] * y[1])));
+}
+
+template <class R>
+Mv1<R> operator^(Mv1<R> const& x, Mv02<R> const& y) {
+
+    return Mv1<R>((x[0] * y[0]), (x[1] * y[0]));
+}
+
+template <class R>
+Mv2<R> operator^(Mv2<R> const& x, Mv0<R> const& y) {
+
+    return Mv2<R>((x[0] * y[0]));
+}
+
+template <class R>
+Mv2<R> operator^(Mv2<R> const& x, Mv02<R> const& y) {
+
+    return Mv2<R>((x[0] * y[0]));
+}
+
+template <class R>
+Mv02<R> operator^(Mv02<R> const& x, Mv0<R> const& y) {
+
+    return Mv02<R>((x[0] * y[0]), (x[1] * y[0]));
+}
+
+template <class R>
+Mv1<R> operator^(Mv02<R> const& x, Mv1<R> const& y) {
+
+    return Mv1<R>((x[0] * y[0]), (x[0] * y[1]));
+}
+
+template <class R>
+Mv2<R> operator^(Mv02<R> const& x, Mv2<R> const& y) {
+
+    return Mv2<R>((x[0] * y[0]));
+}
+
+template <class R>
+Mv02<R> operator^(Mv02<R> const& x, Mv02<R> const& y) {
+    assert(&x != &y);
+
+    return Mv02<R>((x[0] * y[0]), ((x[0] * y[1]) + (x[1] * y[0])));
 }
 
 // inn2
@@ -555,6 +653,56 @@ template <class R>
 Mv0<R> inn2(Mv02<R> const& x) {
 
     return Mv0<R>((-pow(x[1], 2)));
+}
+
+// reverse
+template <class R>
+Mv0<R> operator~(Mv0<R> const& x) {
+
+    return Mv0<R>(x[0]);
+}
+
+template <class R>
+Mv1<R> operator~(Mv1<R> const& x) {
+
+    return Mv1<R>(x[0], x[1]);
+}
+
+template <class R>
+Mv2<R> operator~(Mv2<R> const& x) {
+
+    return Mv2<R>((-x[0]));
+}
+
+template <class R>
+Mv02<R> operator~(Mv02<R> const& x) {
+
+    return Mv02<R>(x[0], (-x[1]));
+}
+
+// norm_r2
+template <class R>
+Mv0<R> norm_r2(Mv0<R> const& x) {
+
+    return Mv0<R>(pow(x[0], 2));
+}
+
+template <class R>
+Mv0<R> norm_r2(Mv1<R> const& x) {
+
+    return Mv0<R>((pow(x[0], 2) + pow(x[1], 2)));
+}
+
+template <class R>
+Mv0<R> norm_r2(Mv2<R> const& x) {
+
+    return Mv0<R>(pow(x[0], 2));
+}
+
+template <class R>
+Mv0<R> norm_r2(Mv02<R> const& x) {
+
+    return Mv0<R>((pow(x[0], 2) + pow(x[1], 2)));
 }
 
 // add
@@ -723,6 +871,13 @@ Mv02<R> operator-(Mv02<R> const& x, Mv02<R> const& y) {
     return Mv02<R>(((-y[0]) + x[0]), (x[1] + (-y[1])));
 }
 
+// rotated
+template <class R>
+Mv1<R> rotated(Mv1<R> const& x, Mv02<R> const& y) {
+
+    return Mv1<R>(((2 * x[1] * y[0] * y[1]) + (x[0] * pow(y[0], 2)) + (-1 * x[0] * pow(y[1], 2))), ((-2 * x[0] * y[0] * y[1]) + (x[1] * pow(y[0], 2)) + (-1 * x[1] * pow(y[1], 2))));
+}
+
 // ostream
 template <class R>
 std::ostream& operator<<(std::ostream& t, const Mv0<R>& x) {
@@ -749,9 +904,25 @@ std::ostream& operator<<(std::ostream& t, const Mv02<R>& x) {
 }
 
 // const
-Mv1<float> const e0(1,0);
-Mv1<float> const e1(0,1);
-Mv2<float> const I(1);
+auto const _1 = Mv0<>(1);
+auto const e0 = Mv1<>(1,0);
+auto const e1 = Mv1<>(0,1);
+auto const I = Mv2<>(1);
+
+// misc
+/*
+nplane -- normal plane
+
+angle -- angle [1]
+
+return -- rotor
+*/
+
+template <class R>
+Mv02<R> rotor(Mv2<R> const& nplane, R const& angle) {
+
+    return Mv0<R>(cos(angle/2.0)) - nplane * Mv0<R>(sin(angle/2.0));
+}
 
 } // aga2
 

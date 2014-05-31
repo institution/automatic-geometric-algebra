@@ -8,11 +8,27 @@ using aga2::Mv1;  // vector
 using aga2::Mv2;  // plane, I
 using aga2::Mv02; // rotor
 
-TEST_CASE( "vector addition", "" ) {
+TEST_CASE( "vector add", "" ) {
 	auto x = Mv1<>(1,2) + Mv1<>(2,3);
     REQUIRE( x[0] == 3 );
     REQUIRE( x[1] == 5 );    
 }
+
+TEST_CASE( "vector sub", "" ) {
+	auto x = Mv1<>(1,-8) - Mv1<>(2,3);
+    REQUIRE( x[0] == -1 );
+    REQUIRE( x[1] == -11 );    
+}
+
+TEST_CASE( "vector inner product", "" ) {
+	auto x = Mv1<>(1,-8) | Mv1<>(2,3);
+    REQUIRE( x == (1*2-8*3) );
+}
+
+/*TEST_CASE( "vector outer product", "" ) {
+	auto x = Mv1<>(1,-8) ^ Mv1<>(2,3);
+    REQUIRE( x == (1*2-8*3) );
+}*/
 
 TEST_CASE( "vector neq", "" ) {	
     REQUIRE( Mv1<>(1,2) != Mv1<>(1,3) );

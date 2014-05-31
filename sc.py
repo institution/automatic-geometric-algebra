@@ -213,6 +213,9 @@ def name_cls(grades, *template_args):
 	ex rotor inst.
 		grades = (0,2), template_args = 'float' -> "Mv02<float>"
 	
+	ex rotor default inst.
+		grades = (0,2), template_args = '' -> "Mv02<>"
+	
 	ex vector decl.
 		grades = (1,) -> "Mv1"
 	"""
@@ -301,13 +304,13 @@ def p_cls(grades):
 	if gs == [0]:
 		mod = ''
 		cast = [
-			mod+'operator R() { return arr[0]; }',
+			mod+'operator R() const { return arr[0]; }',
 			'',
 		]
 	elif gs == [n]:
 		mod = 'explicit '
 		cast = [
-			mod+'operator R() { return arr[0]; }',
+			mod+'operator R() const { return arr[0]; }',
 			'',
 		]
 	
@@ -333,7 +336,7 @@ def p_cls(grades):
 			'using {0} = typename Array::{0};'.format('pointer'),
 			'using {0} = typename Array::{0};'.format('difference_type'),
 			'using {0} = typename Array::{0};'.format('size_type'),
-			'',			
+			'',
 			'Array arr;'.format(csize(gs)),
 			'',
 			mod+'{}({}) '.format(name_cls(gs, 'R'), ', '.join(cargs)) + '{',
@@ -371,6 +374,10 @@ def p_cls(grades):
 			'',
 			'uint size() const {',
 				['return {};'.format(csize(gs))],
+			'}',			
+			'',
+			'R const* data() const {',
+				['return arr.data();'],
 			'}',			
 			'',
 			'bool empty() const { return false; }',
@@ -417,7 +424,9 @@ from sympy.core.mul import Mul
 
 def conv_expr(root):
 	if root.func == Pow:
-		return 'pow({}, {})'.format(*map(conv_expr, root.args))
+		ls = map(conv_expr, root.args)
+		assert len(ls) == 2
+		return 'pow({}, {})'.format(*ls)
 	elif root.func == Integer:
 		return str(root)
 	elif root.func == NegativeOne:
@@ -425,12 +434,31 @@ def conv_expr(root):
 	elif root.func == Symbol:
 		return str(root)
 	elif root.func == Add:
-		return '({} + {})'.format(*map(conv_expr, root.args))
+		# subexpressions
+		ls = list(map(conv_expr, root.args))
+				
+		# "{} + {} + ..."
+		pat = ' + '.join(['{}']*len(ls))    
+		
+		
+		
+		# <subexpr1> + <subexpr2> + ...
+		return ('('+pat+')').format(*ls)
+				
 	elif root.func == Mul:
-		if root.args[0] == -1:
+		if len(root.args) == 2 and root.args[0] == -1:
 			return	'(-{})'.format(conv_expr(root.args[1]))
+		elif len(root.args) == 2 and root.args[0] == 1:
+			return	'({})'.format(conv_expr(root.args[1]))		
 		else:
-			return '({} * {})'.format(*map(conv_expr, root.args))
+			# subexpressions
+			ls = list(map(conv_expr, root.args))
+					
+			# {} * {} * ...
+			pat = ' * '.join(['{}']*len(ls))    
+			
+			# <subexpr1> + <subexpr2> + ...
+			return ('('+pat+')').format(*ls)
 	else:
 		import ipdb; ipdb.set_trace()
 		assert 0
@@ -622,12 +650,20 @@ def main():
 			if rk in cs:
 				xs.extend(func)
 			
-	xs.append('// inn')
+	xs.append('// inner product')
 	for c1 in cs:
 		for c2 in cs:
 			rk, func = p_op('operator|', operator.or_, (c1, c2))
 			if rk in cs:
 				xs.extend(func)
+	
+	xs.append('// outer product')
+	for c1 in cs:
+		for c2 in cs:
+			rk, func = p_op('operator^', operator.xor, (c1, c2))
+			if rk in cs:
+				xs.extend(func)
+	
 	
 	#xs.extend(p_alias_func('operator|', 'inn'))
 	#xs.append('')
@@ -637,7 +673,22 @@ def main():
 		rk, func = p_op('inn2', lambda x: (x|x), [c1])
 		if rk in cs:
 			xs.extend(func)
-			
+	
+	xs.append('// reverse')
+	for c1 in cs:
+		rk, func = p_op('operator~', lambda x: x.rev(), [c1])
+		if rk in cs:
+			xs.extend(func)
+	
+	
+	
+	xs.append('// norm_r2')
+	for c1 in cs:
+		rk, func = p_op('norm_r2', lambda x: x * x.rev(), [c1])
+		if rk in cs:
+			xs.extend(func)
+	
+	
 	xs.append('// add')
 	for c1 in cs:
 		for c2 in cs:
@@ -663,28 +714,75 @@ def main():
 			if rk in cs:
 				xs.extend(func)
 	
+	xs.append('// rotated')	
+	rk, func = p_op('rotated', lambda x,R: (R * x * R.rev()), [[1], [0,2]])
+	if rk in cs:
+		xs.extend(func)
+
+	
 	xs.append('// ostream')
 	for c in cs:
 		xs.extend(p_print(c)); xs.append('')
 		
 	xs.append('// const')
+	
+	# GEN:: auto const _1 = Mv0<>(1);
+	xs.append('auto const _1 = {}(1);'.format(
+		name_cls([0], '')
+	))
+	
+	# GEN:: auto const e1 = Mv1<>(1,0,0);
+	# GEN:: auto const e2 = Mv1<>(0,1,0);
+	# GEN:: auto const e3 = Mv1<>(0,0,1);
 	for i in range(n):
 		args = [0]*n
 		args[i] = 1
-		xs.append('{} const e{}({});'.format(
-			name_cls([1], prec), 
+		xs.append('auto const e{} = {}({});'.format(			
 			str(i), 
+			name_cls([1], ''), 
 			join(map(str,args), ',')
 		))
 		
-	xs.append('{} const I(1);'.format(
-		name_cls([n], prec)
+	# GEN:: auto const I = Mv3<>(1);
+	xs.append('auto const I = {}(1);'.format(
+		name_cls([n], '')
 	))
 	xs.append('')
 	
+	
+	xs.append('// misc')
+	# GEN:: Mv02<R> rotor(Mv2<R> const& nplane, R const& angle);
+	
+	xs.extend((
+		'/*\n'
+		'nplane -- normal plane\n',
+		'angle -- angle [1]\n',
+		'return -- rotor\n'
+		'*/\n'
+	))
+	
+	func = p_func_wrap(
+		name='rotor', 
+		ret_type = name_cls([0,2], 'R'), 
+		arg_types = [name_cls([2], 'R'), 'R'], 
+		arg_mods = ['const&', 'const&'], 
+		arg_names = ['nplane', 'angle'], 
+		body = (
+			'return Mv0<R>(cos(angle/2.0)) - nplane * Mv0<R>(sin(angle/2.0));'		
+		), 
+		#assert_ = 'assert(nplane.norm_r2() - 1.0 <= 0.0000001);'
+	)
+
+	xs.extend(func)
+	
+	
+	# close namespace ect.
 	xs.extend(ending())
 	
 	print '\n'.join(build(xs))
+	
+	
+	
 
 if __name__ == '__main__':
 	main()
