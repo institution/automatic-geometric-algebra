@@ -356,7 +356,7 @@ def p_cls(grades):
 			'}',
 			'',
 			'template<class F>',
-			'{} cast() {{'.format(name_cls(gs, 'F')),
+			'{} cast() const {{'.format(name_cls(gs, 'F')),
 			[
 				'return {}({});'.format(
 					name_cls(gs, 'F'),
@@ -374,8 +374,16 @@ def p_cls(grades):
 			'',
 			'uint size() const {',
 				['return {};'.format(csize(gs))],
-			'}',			
+			'}',	
 			'',
+			p_op('norm2', lambda x: x.norm2(), [gs], gen = p_meth_wrap_inline)[1],
+			'',
+			p_op('rev', lambda x: x.rev(), [gs], gen = p_meth_wrap_inline)[1],
+			'',			
+			p_op('inv', lambda x: x.rev()/x.norm2(), [gs], gen = p_meth_wrap_inline)[1],
+			'',			
+			p_op('operator-', lambda x: -x, [gs], gen = p_meth_wrap_inline)[1],
+			'',			
 			'R const* data() const {',
 				['return arr.data();'],
 			'}',			
@@ -473,7 +481,77 @@ def conv_expr(root):
 
 
 
+def p_meth_wrap_inline(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+	"""	
+	<ret_type> <func_name>(<arg_lst[1:]>) <first_arg_mod> {
+		<first_arg_name> = *this;
+		<body>
+	}
+	"""		
+	
+	decl_args = []	
+	for arg_type, arg_mod, arg_name in zip(arg_types[1:], arg_mods[1:], arg_names[1:]):
+		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
+		
+	return [(
+		'{ret_type} {func_name}({arg_lst}) {f_arg_mod} {{\n'
+		'{assert_}\n'	
+		'auto& {f_arg_name} = *this;\n'
+		'{body}\n'
+		'}}\n'
+	).format(
+		f_arg_type = arg_types[0],
+		f_arg_mod = 'const' if 'const' in arg_mods[0] else '',
+		f_arg_name = arg_names[0],
+		assert_ = assert_,
+		ret_type = ret_type, 		
+		func_name = name, 
+		arg_lst = join(decl_args, ', '),
+		body = body,		
+	)]
+	
+def p_meth_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+	"""
+	template <class R>
+	<ret_type> <first_arg_type>::<func_name>(<arg_lst[1:]>) <first_arg_mod> {
+		<first_arg_name> = *this;
+		<body>
+	}	
+	"""	
+	
+	
+	decl_args = []	
+	for arg_type, arg_mod, arg_name in zip(arg_types[1:], arg_mods[1:], arg_names[1:]):
+		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
+		
+	return [(
+		'template <class R>\n'
+		'{ret_type} {f_arg_type}::{func_name}({arg_lst}) {f_arg_mod} {{\n'
+		'{assert_}\n'	
+		'auto& {f_arg_name} = *this;\n'
+		'{body}\n'
+		'}}\n'
+	).format(
+		f_arg_type = arg_types[0],
+		f_arg_mod = arg_mods[0],
+		f_arg_name = arg_names[0],
+		assert_ = assert_,
+		ret_type = ret_type, 		
+		func_name = name, 
+		arg_lst = join(decl_args, ', '),
+		body = body,		
+	)]
+
+
 def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+	"""
+	template <class R>
+	<ret_type> <func_name>(<arg_lst>) {
+		<assert_>
+		<body>
+	}	
+	"""	
+	
 	decl_args = []	
 	for arg_type, arg_mod, arg_name in zip(arg_types, arg_mods, arg_names):
 		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
@@ -496,7 +574,7 @@ def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 
 
 
-def p_op(opname, opfunc, kss, nargs = 'xyz'):
+def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 	"""
 	
 	template <class R>
@@ -512,41 +590,55 @@ def p_op(opname, opfunc, kss, nargs = 'xyz'):
 		arg_types.append(name_cls(ks,'R'))
 		
 	arg_names = nargs[:len(kss)]
-			
+					
 	r = opfunc(*args)
 	
-	bss = get_base_coefs(r)
-	
-	# non zero result grades	
-	nz_grades = []
-	
-	
-	for g,bs in enumerate(bss):
-		if any([b != ZERO for b in bs]):		
-			nz_grades.append(g)
-			
-	ret_type = name_cls(nz_grades,'R')
 		
 	
-	ces = []
-	for g in nz_grades:
-		for coef in bss[g]:
-			ces.append(conv_expr(coef))
-	
+	if (isinstance(r, MV)):
+		# result is multivector
+		bss = get_base_coefs(r)
+		
+		# non zero result grades	
+		nz_grades = []		
+		
+		for g,bs in enumerate(bss):
+			if any([b != ZERO for b in bs]):		
+				nz_grades.append(g)
+				
+		ret_type = name_cls(nz_grades,'R')
+		
+		ces = []
+		for g in nz_grades:
+			for coef in bss[g]:
+				ces.append(conv_expr(coef))
+		
+		coe = ', '.join(ces)
+		
+		body = format('return {}({});', ret_type, coe)
+		
+	else:
+		# result is scalar
+		nz_grades = [0];
+		ret_type = 'R'
+		coe = conv_expr(r)
+		
+		body = format('return {};', coe)
+
+
+		
 	if len(kss) == 2 and kss[0] == kss[1]:
 		assert_ = 'assert(&{} != &{});\n'.format(nargs[0], nargs[1])
 	else:
 		assert_ = ''
-	
-	coe = ', '.join(ces)
 				
-	return nz_grades, p_func_wrap(
+	return nz_grades, gen(
 		name = opname, 
 		ret_type = ret_type, 
 		arg_types = arg_types, 
 		arg_mods = ['const&'] * len(arg_types),
 		arg_names = arg_names, 
-		body = format('return {}({});', ret_type, coe), 
+		body = body, 
 		assert_=assert_
 	)
 	
@@ -649,6 +741,7 @@ def main():
 			rk, func = p_op('operator*', operator.mul, (c1, c2))
 			if rk in cs:
 				xs.extend(func)
+				
 			
 	xs.append('// inner product')
 	for c1 in cs:
@@ -674,20 +767,13 @@ def main():
 		if rk in cs:
 			xs.extend(func)
 	
-	xs.append('// reverse')
+	'''
+	xs.append('// reverse (operator~)')
 	for c1 in cs:
 		rk, func = p_op('operator~', lambda x: x.rev(), [c1])
 		if rk in cs:
-			xs.extend(func)
-	
-	
-	
-	xs.append('// norm_r2')
-	for c1 in cs:
-		rk, func = p_op('norm_r2', lambda x: x * x.rev(), [c1])
-		if rk in cs:
-			xs.extend(func)
-	
+			xs.extend(func)	
+	'''
 	
 	xs.append('// add')
 	for c1 in cs:
@@ -706,13 +792,22 @@ def main():
 						body = 'x = x + y;', 
 					))
 
-	
 	xs.append('// sub')
 	for c1 in cs:
 		for c2 in cs:
 			rk, func = p_op('operator-', operator.sub, [c1, c2])
 			if rk in cs:
 				xs.extend(func)
+
+				if rk == c1:				
+					xs.extend(p_func_wrap(
+						name = 'operator-=', 
+						ret_type = 'void', 
+						arg_types = [name_cls(c1,'R'), name_cls(c2,'R')],
+						arg_mods = ['&', 'const&'],
+						arg_names = ['x', 'y'],
+						body = 'x = x - y;', 
+					))
 	
 	xs.append('// rotated')	
 	rk, func = p_op('rotated', lambda x,R: (R * x * R.rev()), [[1], [0,2]])

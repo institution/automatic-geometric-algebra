@@ -45,7 +45,7 @@ public:
     }
 
     template<class F>
-    Mv0<F> cast() {
+    Mv0<F> cast() const {
         return Mv0<F>(F(arr[0]));
     }
 
@@ -57,6 +57,34 @@ public:
     uint size() const {
         return 1;
     }
+
+    R norm2() const {
+
+        auto& x = *this;
+        return pow(x[0], 2);
+    }
+
+
+    Mv0<R> rev() const {
+
+        auto& x = *this;
+        return Mv0<R>(x[0]);
+    }
+
+
+    Mv0<R> inv() const {
+
+        auto& x = *this;
+        return Mv0<R>(pow(x[0], -1));
+    }
+
+
+    Mv0<R> operator-() const {
+
+        auto& x = *this;
+        return Mv0<R>((-x[0]));
+    }
+
 
     R const* data() const {
         return arr.data();
@@ -127,7 +155,7 @@ public:
     }
 
     template<class F>
-    Mv1<F> cast() {
+    Mv1<F> cast() const {
         return Mv1<F>(F(arr[0]), F(arr[1]));
     }
 
@@ -139,6 +167,34 @@ public:
     uint size() const {
         return 2;
     }
+
+    R norm2() const {
+
+        auto& x = *this;
+        return (pow(x[0], 2) + pow(x[1], 2));
+    }
+
+
+    Mv1<R> rev() const {
+
+        auto& x = *this;
+        return Mv1<R>(x[0], x[1]);
+    }
+
+
+    Mv1<R> inv() const {
+
+        auto& x = *this;
+        return Mv1<R>((x[0] * pow((pow(x[0], 2) + pow(x[1], 2)), -1)), (x[1] * pow((pow(x[0], 2) + pow(x[1], 2)), -1)));
+    }
+
+
+    Mv1<R> operator-() const {
+
+        auto& x = *this;
+        return Mv1<R>((-x[0]), (-x[1]));
+    }
+
 
     R const* data() const {
         return arr.data();
@@ -212,7 +268,7 @@ public:
     }
 
     template<class F>
-    Mv2<F> cast() {
+    Mv2<F> cast() const {
         return Mv2<F>(F(arr[0]));
     }
 
@@ -224,6 +280,34 @@ public:
     uint size() const {
         return 1;
     }
+
+    R norm2() const {
+
+        auto& x = *this;
+        return pow(x[0], 2);
+    }
+
+
+    Mv2<R> rev() const {
+
+        auto& x = *this;
+        return Mv2<R>((-x[0]));
+    }
+
+
+    Mv2<R> inv() const {
+
+        auto& x = *this;
+        return Mv2<R>((-pow(x[0], -1)));
+    }
+
+
+    Mv2<R> operator-() const {
+
+        auto& x = *this;
+        return Mv2<R>((-x[0]));
+    }
+
 
     R const* data() const {
         return arr.data();
@@ -294,7 +378,7 @@ public:
     }
 
     template<class F>
-    Mv02<F> cast() {
+    Mv02<F> cast() const {
         return Mv02<F>(F(arr[0]), F(arr[1]));
     }
 
@@ -306,6 +390,34 @@ public:
     uint size() const {
         return 2;
     }
+
+    R norm2() const {
+
+        auto& x = *this;
+        return (pow(x[0], 2) + pow(x[1], 2));
+    }
+
+
+    Mv02<R> rev() const {
+
+        auto& x = *this;
+        return Mv02<R>(x[0], (-x[1]));
+    }
+
+
+    Mv02<R> inv() const {
+
+        auto& x = *this;
+        return Mv02<R>((x[0] * pow((pow(x[0], 2) + pow(x[1], 2)), -1)), (-1 * x[1] * pow((pow(x[0], 2) + pow(x[1], 2)), -1)));
+    }
+
+
+    Mv02<R> operator-() const {
+
+        auto& x = *this;
+        return Mv02<R>((-x[0]), (-x[1]));
+    }
+
 
     R const* data() const {
         return arr.data();
@@ -655,56 +767,6 @@ Mv0<R> inn2(Mv02<R> const& x) {
     return Mv0<R>((-pow(x[1], 2)));
 }
 
-// reverse
-template <class R>
-Mv0<R> operator~(Mv0<R> const& x) {
-
-    return Mv0<R>(x[0]);
-}
-
-template <class R>
-Mv1<R> operator~(Mv1<R> const& x) {
-
-    return Mv1<R>(x[0], x[1]);
-}
-
-template <class R>
-Mv2<R> operator~(Mv2<R> const& x) {
-
-    return Mv2<R>((-x[0]));
-}
-
-template <class R>
-Mv02<R> operator~(Mv02<R> const& x) {
-
-    return Mv02<R>(x[0], (-x[1]));
-}
-
-// norm_r2
-template <class R>
-Mv0<R> norm_r2(Mv0<R> const& x) {
-
-    return Mv0<R>(pow(x[0], 2));
-}
-
-template <class R>
-Mv0<R> norm_r2(Mv1<R> const& x) {
-
-    return Mv0<R>((pow(x[0], 2) + pow(x[1], 2)));
-}
-
-template <class R>
-Mv0<R> norm_r2(Mv2<R> const& x) {
-
-    return Mv0<R>(pow(x[0], 2));
-}
-
-template <class R>
-Mv0<R> norm_r2(Mv02<R> const& x) {
-
-    return Mv0<R>((pow(x[0], 2) + pow(x[1], 2)));
-}
-
 // add
 template <class R>
 Mv0<R> operator+(Mv0<R> const& x, Mv0<R> const& y) {
@@ -815,6 +877,12 @@ Mv0<R> operator-(Mv0<R> const& x, Mv0<R> const& y) {
 }
 
 template <class R>
+void operator-=(Mv0<R> & x, Mv0<R> const& y) {
+
+    x = x - y;
+}
+
+template <class R>
 Mv02<R> operator-(Mv0<R> const& x, Mv2<R> const& y) {
 
     return Mv02<R>(x[0], (-y[0]));
@@ -834,6 +902,12 @@ Mv1<R> operator-(Mv1<R> const& x, Mv1<R> const& y) {
 }
 
 template <class R>
+void operator-=(Mv1<R> & x, Mv1<R> const& y) {
+
+    x = x - y;
+}
+
+template <class R>
 Mv02<R> operator-(Mv2<R> const& x, Mv0<R> const& y) {
 
     return Mv02<R>((-y[0]), x[0]);
@@ -844,6 +918,12 @@ Mv2<R> operator-(Mv2<R> const& x, Mv2<R> const& y) {
     assert(&x != &y);
 
     return Mv2<R>(((-y[0]) + x[0]));
+}
+
+template <class R>
+void operator-=(Mv2<R> & x, Mv2<R> const& y) {
+
+    x = x - y;
 }
 
 template <class R>
@@ -859,9 +939,21 @@ Mv02<R> operator-(Mv02<R> const& x, Mv0<R> const& y) {
 }
 
 template <class R>
+void operator-=(Mv02<R> & x, Mv0<R> const& y) {
+
+    x = x - y;
+}
+
+template <class R>
 Mv02<R> operator-(Mv02<R> const& x, Mv2<R> const& y) {
 
     return Mv02<R>(x[0], ((-y[0]) + x[1]));
+}
+
+template <class R>
+void operator-=(Mv02<R> & x, Mv2<R> const& y) {
+
+    x = x - y;
 }
 
 template <class R>
@@ -869,6 +961,12 @@ Mv02<R> operator-(Mv02<R> const& x, Mv02<R> const& y) {
     assert(&x != &y);
 
     return Mv02<R>(((-y[0]) + x[0]), (x[1] + (-y[1])));
+}
+
+template <class R>
+void operator-=(Mv02<R> & x, Mv02<R> const& y) {
+
+    x = x - y;
 }
 
 // rotated
