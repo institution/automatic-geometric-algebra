@@ -7,6 +7,14 @@ import operator
 from string import join
 import sys
 
+"""
+from sympy.galgebra.ga import *
+from sympy import *
+
+x0,x1,x2 = symbols('x0 x1 x2')
+e0,e1,e2,grad = MV.setup('e0 e1 e2',metric='[1,1,1]',coords=(x0,x1,x2))
+"""
+
 if len(sys.argv) != 2:
 	print "Usage: python sc.py 2 > aga2.hpp && astyle aga2.hpp"
 	sys.exit(0)
@@ -16,13 +24,13 @@ prec = 'float'
 n = int(sys.argv[1])
 N = 2**n
 
-def get_metric(n):
+def get_metric(ms):
 	""" Return metric passable to setup proc	
 	ex.
 	n=2 -> "[1,1]"
 	n=3 -> "[1,1,1]"
 	"""
-	return '['+','.join(['1']*n)+']'
+	return '['+','.join(str(m) for m in ms)+']'
 
 
 def get_basis(n):
@@ -56,7 +64,9 @@ def get_flat_bases():
 
 
 # get basis multivectors
-e = MV.setup(get_basis(n), get_metric(n))
+ms = n*['1']
+e = MV.setup(get_basis(n), get_metric(ms))
+
 
 
 def get_bases():
@@ -135,6 +145,8 @@ def prelude():
 		'#include <cmath>',
 		'#include <iostream>',
 		'',
+		'#include "safe_cast.h"',
+		'',
 		'namespace aga{n} {{'.format(n = n),
 		'',
 		'using uint = unsigned int;',
@@ -180,7 +192,7 @@ def csize(grades):
 
 
 
-def produce_obj(name, grades):
+def produce_obj(name, grades, wrap_scalar=True):
 	""" Return sympy mv object with symbolic coeffs
 	name
 	grades
@@ -189,12 +201,17 @@ def produce_obj(name, grades):
 
 	
 	"""
+		
+	
 	mv = ZERO
 	
 	i = 0
 	for g in grades:
-		for base_mv in bases[g]:			
-			coef = symbols('{}[{}]'.format(name, i))  # name[i]
+		for base_mv in bases[g]:
+			if not wrap_scalar and g == 0:
+				coef = symbols('{}'.format(name))  # name
+			else:
+				coef = symbols('{}[{}]'.format(name, i))  # name[i]
 			mv += coef * base_mv			
 			i += 1	
 	
@@ -207,7 +224,7 @@ def _comb(n,k):
 	
 
 
-def name_cls(grades, *template_args):
+def name_cls(grades, template_args=(), wrap_scalar=True):
 	""" Return c++ multivector template class name 
 	
 	ex rotor inst.
@@ -219,6 +236,11 @@ def name_cls(grades, *template_args):
 	ex vector decl.
 		grades = (1,) -> "Mv1"
 	"""
+	assert isinstance(template_args, (tuple, list))
+	
+	if not wrap_scalar and grades == [0]:
+		return 'R'
+	
 	if template_args:
 		targs = '<{}>'.format(join(template_args, ', '))
 	else:
@@ -253,8 +275,31 @@ def csize(grades):
 		p += l
 	return p
 	
+
 	
-	
+"""
+k,i -- grade, index inside grade
+d -- index inside our multi-vector
+
+n = 3
+
+k:[i]
+	0:[0]
+	1:[0 1 2]
+	2:[0 1 2]
+	3:[0]
+
+Mv02 d: (k,i)
+	0: (0,0) 
+	1: (2,0)
+	2: (2,1)
+	3: (2,2)
+
+0 <= d < csize(gs)	
+
+d_ki(gs,k,i) -- index inside Mv containing all grades from gs
+ki_d(gs,d) -- k,i from d
+"""
 
 def d_ki(gs, k, i):
 	""" d -> k,i """
@@ -292,22 +337,36 @@ def p_cls(grades):
 	
 	gs = grades
 	
+	# constructor args,body
 	cargs = []
 	cbody = []
+	
 	for k in gs:
 		l = _comb(n,k)
 		for i in range(l):
 			k,i	
+			
+			# k -- grade
+			# i -- index inside grade
+			# d_ki(gs,k,i) -- index inside Mv containing all grades from gs
 			cargs.append('R const& a{}{}'.format(k,i))
 			cbody.append('arr[{}] = a{}{};'.format(d_ki(gs, k,i), k, i))
+	
+	# casting constructor body
+	ccbody_lines = []
+	for d in range(csize(gs)):				
+		ccbody_lines.append('arr[{d}] = R(other[{d}]);'.format(d=d))
+	ccbody = '\n'.join(ccbody_lines)
 
 	if gs == [0]:
+		# implicit cast to R from scalar
 		mod = ''
 		cast = [
 			mod+'operator R() const { return arr[0]; }',
 			'',
 		]
 	elif gs == [n]:
+		# explicit cast to R from pseudoscalar
 		mod = 'explicit '
 		cast = [
 			mod+'operator R() const { return arr[0]; }',
@@ -318,7 +377,24 @@ def p_cls(grades):
 		mod = ''
 		cast = []
 
+	class_name = name_cls(gs)
+
+
+
+	assigment = []
+	assigment.append('// operator=')
 	
+	
+	assigment.extend(p_func_wrap(
+		name = 'operator=', 
+		ret_type = 'void', 
+		arg_types = [name_cls(gs,['A'])],
+		arg_mods = ['const&'],
+		arg_names = ['x'],
+		body = '\n'.join(['(*this)[{i}] = x[{i}];'.format(i=i) for i in range(len(gs))]),
+		template = "template <class A,\ntypename enable_if_safe_cast<A,R>::type* = nullptr>",
+	))
+
 
 	return [
 		'template <class R>',
@@ -337,45 +413,50 @@ def p_cls(grades):
 			'using {0} = typename Array::{0};'.format('difference_type'),
 			'using {0} = typename Array::{0};'.format('size_type'),
 			'',
-			'Array arr;'.format(csize(gs)),
+			'using scalar_type = R;',
 			'',
-			mod+'{}({}) '.format(name_cls(gs, 'R'), ', '.join(cargs)) + '{',
+			'Array arr;',
+			'',
+			'// cast constructor from scalar type',
+			'{} {}({}) {{'.format(mod, name_cls(gs, ['R']), ', '.join(cargs)),
 			cbody,
 			'}',
 			'',
-			# null constructor
-			'{}() '.format(name_cls(gs, 'R')) + '{',
+			'// null constructor',
+			'{}() '.format(name_cls(gs, ['R'])) + '{',
 			'}',
 			'',
+			#'// implicit cast constructor',
+			#'template<class SrcType,',
+			#'	typename enable_if_safe_cast<SrcType, R>::type* = nullptr',
+			#'>',
+			#'{ClassName}({ClassName}<SrcType> const& other) {{'.format(ClassName = class_name),
+			#'	{ccbody}'.format(ccbody = ccbody),
+			#'}',
+			#'',
+			'// explicit cast constructor',
+			'template<class SrcType>',
+			'explicit',
+			'{ClassName}({ClassName}<SrcType> const& other) {{'.format(ClassName = class_name),
+			'	{ccbody}'.format(ccbody = ccbody),
+			'}',
+			'',			
 		] +	cast + [
 			'R& operator[](uint const& d) {',
-			[
-				'assert(d < size());',
-				'return arr[d];',
-			],
-			'}',
-			'',
-			'template<class F>',
-			'{} cast() const {{'.format(name_cls(gs, 'F')),
-			[
-				'return {}({});'.format(
-					name_cls(gs, 'F'),
-					join(['F(arr[{}])'.format(i) for i in range(csize(gs))], ', '),
-				),
-			],
+			'	assert(d < size());',
+			'	return arr[d];',
 			'}',
 			'',
 			'const R& operator[](uint const& d) const {',
-			[
-				'assert(d < size());',
-				'return arr[d];',
-			],
+			'	assert(d < size());',
+			'	return arr[d];',
 			'}',
 			'',
 			'uint size() const {',
-				['return {};'.format(csize(gs))],
+			'	return {};'.format(csize(gs)),
 			'}',	
 			'',
+		] + assigment + [			
 			p_op('norm2', lambda x: x.norm2(), [gs], gen = p_meth_wrap_inline)[1],
 			'',
 			p_op('rev', lambda x: x.rev(), [gs], gen = p_meth_wrap_inline)[1],
@@ -419,13 +500,13 @@ def p_cls(grades):
 		],
 		'};',
 		'',
-		'template<class R = {}> class {};'.format(prec, name_cls(gs)),
+		# 'template<class R = {}> class {};'.format(prec, name_cls(gs)),
 	]
 
 
 
 from sympy.core.power import Pow
-from sympy.core.numbers import Integer,NegativeOne
+from sympy.core.numbers import Integer,NegativeOne, Zero
 from sympy.core.symbol import Symbol
 from sympy.core.add import Add
 from sympy.core.mul import Mul
@@ -467,6 +548,8 @@ def conv_expr(root):
 			
 			# <subexpr1> + <subexpr2> + ...
 			return ('('+pat+')').format(*ls)
+	elif root.func == Zero:
+		return '0'
 	else:
 		import ipdb; ipdb.set_trace()
 		assert 0
@@ -481,7 +564,9 @@ def conv_expr(root):
 
 
 
-def p_meth_wrap_inline(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+def p_meth_wrap_inline(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = '',
+		template = ''
+	):
 	"""	
 	<ret_type> <func_name>(<arg_lst[1:]>) <first_arg_mod> {
 		<first_arg_name> = *this;
@@ -494,6 +579,7 @@ def p_meth_wrap_inline(name, ret_type, arg_types, arg_mods, arg_names, body, ass
 		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
 		
 	return [(
+		'{template}\n'
 		'{ret_type} {func_name}({arg_lst}) {f_arg_mod} {{\n'
 		'{assert_}\n'	
 		'auto& {f_arg_name} = *this;\n'
@@ -507,10 +593,13 @@ def p_meth_wrap_inline(name, ret_type, arg_types, arg_mods, arg_names, body, ass
 		ret_type = ret_type, 		
 		func_name = name, 
 		arg_lst = join(decl_args, ', '),
-		body = body,		
+		body = body,
+		template = template,		
 	)]
 	
-def p_meth_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+def p_meth_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = '',
+		template = 'template <class R>'
+	):
 	"""
 	template <class R>
 	<ret_type> <first_arg_type>::<func_name>(<arg_lst[1:]>) <first_arg_mod> {
@@ -525,7 +614,7 @@ def p_meth_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
 		
 	return [(
-		'template <class R>\n'
+		'{template}\n'
 		'{ret_type} {f_arg_type}::{func_name}({arg_lst}) {f_arg_mod} {{\n'
 		'{assert_}\n'	
 		'auto& {f_arg_name} = *this;\n'
@@ -539,11 +628,14 @@ def p_meth_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 		ret_type = ret_type, 		
 		func_name = name, 
 		arg_lst = join(decl_args, ', '),
-		body = body,		
+		body = body,
+		template = template,	
 	)]
 
 
-def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = ''):
+def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = '', 
+		template = 'template <class R>'
+	):
 	"""
 	template <class R>
 	<ret_type> <func_name>(<arg_lst>) {
@@ -557,7 +649,7 @@ def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 		decl_args.append(format('{} {} {}', arg_type, arg_mod, arg_name))
 		
 	return [(
-		'template <class R>\n'
+		'{template}\n'
 		'{ret_type} {func_name}({arg_lst}) {{\n'
 		'{assert_}\n'	
 		'{body}\n'
@@ -567,14 +659,11 @@ def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 		ret_type = ret_type, 		
 		func_name = name, 
 		arg_lst = join(decl_args, ', '),
-		body = body,		
+		body = body,
+		template = template,
 	)]
 
-
-
-
-
-def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
+def p_op(opname, opfunc, kss, nargs = 'xyz', nbtypes='ABCD', gen = p_func_wrap, wrap_scalar=True):
 	"""
 	
 	template <class R>
@@ -585,14 +674,42 @@ def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 	"""
 	args = []
 	arg_types = []
-	for ks, narg in zip(kss, nargs):
-		args.append(produce_obj(narg, ks))
-		arg_types.append(name_cls(ks,'R'))
+	for ks, narg, btype in zip(kss, nargs, nbtypes):
+		args.append(produce_obj(narg, ks, wrap_scalar=wrap_scalar))
+		
+		if len(kss) == 1:
+			btype = 'R'
+			
+		if not wrap_scalar and ks == [0]:
+			arg_types.append(btype)
+		else:
+			arg_types.append(name_cls(ks,[btype]))
+	
+	
+				
+	if len(kss) == 1:
+		arg_btypes = ['R']
+		ret_btype = 'R'
+		
+		if gen == p_func_wrap:
+			template = 'template <class R>'
+		else:
+			template = ''
+		
+	else:
+		arg_btypes = nbtypes[:len(kss)]
+		ret_btype = nbtypes[len(kss)]
+		
+		arg_btypes_lst1 = ', '.join('class {}'.format(X) for X in arg_btypes)
+		arg_btypes_lst2 = ', '.join('{}'.format(X) for X in arg_btypes)
+		
+		ret_type_decl = 'class {} = typename std::common_type<{}>::type'.format(ret_btype, arg_btypes_lst2)
+		template = 'template<{}, \n{}>\n'.format(arg_btypes_lst1, ret_type_decl)
+		
 		
 	arg_names = nargs[:len(kss)]
-					
+			
 	r = opfunc(*args)
-	
 		
 	
 	if (isinstance(r, MV)):
@@ -606,8 +723,9 @@ def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 			if any([b != ZERO for b in bs]):		
 				nz_grades.append(g)
 				
-		ret_type = name_cls(nz_grades,'R')
 		
+		ret_type = name_cls(nz_grades,[ret_btype], wrap_scalar=wrap_scalar)
+				
 		ces = []
 		for g in nz_grades:
 			for coef in bss[g]:
@@ -616,6 +734,7 @@ def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 		coe = ', '.join(ces)
 		
 		body = format('return {}({});', ret_type, coe)
+		#import ipdb; ipdb.set_trace()
 		
 	else:
 		# result is scalar
@@ -628,9 +747,11 @@ def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 
 		
 	if len(kss) == 2 and kss[0] == kss[1]:
-		assert_ = 'assert(&{} != &{});\n'.format(nargs[0], nargs[1])
+		# assert_ = 'assert(&{} != &{});\n'.format(nargs[0], nargs[1])
+		assert_ = ''
 	else:
 		assert_ = ''
+				
 				
 	return nz_grades, gen(
 		name = opname, 
@@ -639,7 +760,8 @@ def p_op(opname, opfunc, kss, nargs = 'xyz', gen = p_func_wrap):
 		arg_mods = ['const&'] * len(arg_types),
 		arg_names = arg_names, 
 		body = body, 
-		assert_=assert_
+		assert_=assert_,
+		template = template,
 	)
 	
 	
@@ -662,7 +784,7 @@ def p_print(ks):
 		'    t << "{ncls}(" << {out_args} << ")";'
 		'    return t;'
 		'}}').format(
-			ncls = name_cls(ks,'R'),
+			ncls = name_cls(ks,['R']),
 			out_args = join(['x[{}]'.format(i) for i in range(csize(ks))], ' << "," << '),
 	)]
 	
@@ -697,7 +819,7 @@ def p_xeq_func(grades, name, opers):
 	return p_func_wrap(
 		name = name,
 		ret_type = 'bool',
-		arg_types = [name_cls(grades,'R'), name_cls(grades,'R')],
+		arg_types = [name_cls(grades,['R']), name_cls(grades,['R'])],
 		arg_mods = ['const&'] * 2,
 		arg_names = ['x', 'y'],
 		body = format('return {};', oper_join(pairs, *opers))
@@ -741,7 +863,22 @@ def main():
 			rk, func = p_op('operator*', operator.mul, (c1, c2))
 			if rk in cs:
 				xs.extend(func)
-				
+	
+	xs.append('// mul when one arg is Scalar')
+	for c1 in [[0]]:
+		for c2 in cs:
+			if c1 != c2: # disable mul(R,R)
+				rk, func = p_op('operator*', operator.mul, (c1, c2), wrap_scalar=False)
+				if rk in cs:
+					xs.extend(func)
+		
+	for c1 in cs:
+		for c2 in [[0]]:
+			if c1 != c2: # disable mul(R,R)
+				rk, func = p_op('operator*', operator.mul, (c1, c2), wrap_scalar=False)
+				if rk in cs:
+					xs.extend(func)
+					
 			
 	xs.append('// inner product')
 	for c1 in cs:
@@ -775,6 +912,7 @@ def main():
 			xs.extend(func)	
 	'''
 	
+	
 	xs.append('// add')
 	for c1 in cs:
 		for c2 in cs:
@@ -786,10 +924,11 @@ def main():
 					xs.extend(p_func_wrap(
 						name = 'operator+=', 
 						ret_type = 'void', 
-						arg_types = [name_cls(c1,'R'), name_cls(c2,'R')],
+						arg_types = [name_cls(c1,['A']), name_cls(c2,['B'])],
 						arg_mods = ['&', 'const&'],
 						arg_names = ['x', 'y'],
 						body = 'x = x + y;', 
+						template = "template <class A, class B,\ntypename enable_if_safe_cast<B,A>::type* = nullptr>",
 					))
 
 	xs.append('// sub')
@@ -803,10 +942,11 @@ def main():
 					xs.extend(p_func_wrap(
 						name = 'operator-=', 
 						ret_type = 'void', 
-						arg_types = [name_cls(c1,'R'), name_cls(c2,'R')],
+						arg_types = [name_cls(c1,['A']), name_cls(c2,['B'])],
 						arg_mods = ['&', 'const&'],
 						arg_names = ['x', 'y'],
 						body = 'x = x - y;', 
+						template = "template <class A, class B,\ntypename enable_if_safe_cast<B,A>::type* = nullptr>",						
 					))
 	
 	xs.append('// rotated')	
@@ -823,7 +963,7 @@ def main():
 	
 	# GEN:: auto const _1 = Mv0<>(1);
 	xs.append('auto const _1 = {}(1);'.format(
-		name_cls([0], '')
+		name_cls([0], ['float'])
 	))
 	
 	# GEN:: auto const e1 = Mv1<>(1,0,0);
@@ -834,13 +974,13 @@ def main():
 		args[i] = 1
 		xs.append('auto const e{} = {}({});'.format(			
 			str(i), 
-			name_cls([1], ''), 
+			name_cls([1], ['float']), 
 			join(map(str,args), ',')
 		))
 		
 	# GEN:: auto const I = Mv3<>(1);
 	xs.append('auto const I = {}(1);'.format(
-		name_cls([n], '')
+		name_cls([n], ['float'])
 	))
 	xs.append('')
 	
@@ -858,8 +998,8 @@ def main():
 	
 	func = p_func_wrap(
 		name='rotor', 
-		ret_type = name_cls([0,2], 'R'), 
-		arg_types = [name_cls([2], 'R'), 'R'], 
+		ret_type = name_cls([0,2], ['R']), 
+		arg_types = [name_cls([2], ['R']), 'R'], 
 		arg_mods = ['const&', 'const&'], 
 		arg_names = ['nplane', 'angle'], 
 		body = (
