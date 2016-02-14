@@ -133,34 +133,52 @@ def get_base_elems():
 
 
 
+def safe_cast():
+	return [
+		'// safe casting...',
+		'template<class From, class To>',
+		'using is_safe_cast = std::is_same<',
+		'	typename std::common_type<From, To>::type,',
+		'	To',
+		'>;',
+		'',
+		'template<class From, class To>',
+		'using enable_if_safe_cast = std::enable_if<',
+		'	is_safe_cast<From, To>::value',
+		'>;',
+	]
+
 def prelude():
 	""" Return c++ prelude """
 	bs = map(len, MV.index)
 
 	return [
-		'#ifndef AGA{n}_HPP'.format(n = n),
-		'#define AGA{n}_HPP'.format(n = n),
+		'#pragma once',
+		'',
 		'#include <cassert>',
 		'#include <array>',
 		'#include <cmath>',
 		'#include <iostream>',
-		'',
-		'#include "safe_cast.h"',
+		'#include <type_traits>',
 		'',
 		'namespace aga{n} {{'.format(n = n),
 		'',
 		'using uint = unsigned int;',
 		'',
 		'uint const n = {n};'.format(n = n),
+		'',
+	] + safe_cast() + [
+		'',
 	]
+	
+	
+	
 	
 
 def ending():
 	""" Return c++ ending """
 	return [
-		'}} // aga{n}'.format(n = n),
-		'',
-		'#endif // AGA{}_HPP'.format(n),
+		'}} // aga{n}'.format(n = n),				
 	]
 
 
@@ -341,6 +359,9 @@ def p_cls(grades):
 	cargs = []
 	cbody = []
 	
+	unpack_args = []
+	unpack_body = []
+	
 	for k in gs:
 		l = _comb(n,k)
 		for i in range(l):
@@ -351,6 +372,11 @@ def p_cls(grades):
 			# d_ki(gs,k,i) -- index inside Mv containing all grades from gs
 			cargs.append('R const& a{}{}'.format(k,i))
 			cbody.append('arr[{}] = a{}{};'.format(d_ki(gs, k,i), k, i))
+			
+			unpack_args.append('R & a{}{}'.format(k,i))
+			unpack_body.append('a{}{} = arr[{}];'.format(k, i, d_ki(gs, k,i)))
+	
+	
 	
 	# casting constructor body
 	ccbody_lines = []
@@ -420,6 +446,11 @@ def p_cls(grades):
 			'// cast constructor from scalar type',
 			'{} {}({}) {{'.format(mod, name_cls(gs, ['R']), ', '.join(cargs)),
 			cbody,
+			'}',
+			'',
+			'// unpack',
+			'void unpack({}) const {{'.format(', '.join(unpack_args)),
+			unpack_body,
 			'}',
 			'',
 			'// null constructor',
@@ -663,6 +694,9 @@ def p_func_wrap(name, ret_type, arg_types, arg_mods, arg_names, body, assert_ = 
 		template = template,
 	)]
 
+
+#def p_vop(opname, opfunc)
+
 def p_op(opname, opfunc, kss, nargs = 'xyz', nbtypes='ABCD', gen = p_func_wrap, wrap_scalar=True):
 	"""
 	
@@ -780,11 +814,13 @@ def nz_grades(x):
 def p_print(ks):		
 	return [(
 		'template <class R>\n'
-		'std::ostream& operator<<(std::ostream& t, const {ncls}& x) {{'
-		'    t << "{ncls}(" << {out_args} << ")";'
+		'std::ostream& operator<<(std::ostream& t, {ncls} const& x) {{'
+		'    t << "{reprcls}(" << {out_args} << ")";'
 		'    return t;'
 		'}}').format(
 			ncls = name_cls(ks,['R']),
+			# reprcls = name_cls(ks,[]).lower(),
+			reprcls = '',
 			out_args = join(['x[{}]'.format(i) for i in range(csize(ks))], ' << "," << '),
 	)]
 	
